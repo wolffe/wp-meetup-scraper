@@ -48,32 +48,42 @@ function itn_get_meetup_events( $url ) {
         // Load HTML content into the DOMDocument
         $dom->loadHTML( $html );
 
-        // Use DOMXPath to query the document
-        $xpath = new DOMXPath( $dom );
+        if (preg_match('/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s', $dom->saveHTML(), $m)) {
+            $json = json_decode($m[1], true);
+            $apolloState = $json['props']['pageProps']['__APOLLO_STATE__'] ?? [];
 
-        // Specify the XPath queries to select date, title, location and link
-        $date_nodes     = $xpath->query( '//time[@class=""]/@datetime' );
-        $title_nodes    = $xpath->query( '//h2[@class="text-gray7 font-medium text-base pb-1 pt-0 line-clamp-3"]' );
-        $location_nodes = $xpath->query( '//p[@class="text-gray6"][contains(., "Group name:")]/following-sibling::p[1]' );
-        $link_nodes     = $xpath->query( '//a[@data-event-label="Event card"]/@href' );
+            $date_nodes = [];
+            $title_nodes = [];
+            $location_nodes = [];
+            $link_nodes = [];
+
+            foreach ($apolloState as $key => $obj) {
+                if (strpos($key, 'Event:') === 0) {
+                    $date_nodes[] = $obj['dateTime'] ?? '';
+                    $title_nodes[] = $obj['title'] ?? '';
+                    $location_nodes[] = $obj['group']['urlname'] ?? '';
+                    $link_nodes[] = $obj['eventUrl'] ?? '';
+                }
+            }
+        }
 
         // Prepare an array to store event data
         $events = [];
 
         // Check if nodes were found
-        if ( $date_nodes->length == 0 || $title_nodes->length == 0 || $location_nodes->length == 0 || $link_nodes->length == 0 ) {
+        if ( count($date_nodes) == 0 || count($title_nodes) == 0 || count($location_nodes) == 0 || count($link_nodes) == 0 ) {
             // Handle case when nodes are not found
             // Log or display a message
             // No events found
         } else {
             // Output the last 10 date, title, and link
-            $total_events = min( 10, $date_nodes->length ); // Get the minimum of 10 and the total number of events
+            $total_events = min( 10, count($date_nodes) ); // Get the minimum of 10 and the total number of events
 
-            for ( $i = $date_nodes->length - 1; $i >= $date_nodes->length - $total_events; $i-- ) {
-                $date     = $date_nodes->item( $i )->nodeValue;
-                $title    = $title_nodes->item( $i )->nodeValue;
-                $location = $location_nodes->item( $i )->nodeValue;
-                $link     = $link_nodes->item( $i )->nodeValue;
+            for ( $i = count($date_nodes) - 1; $i >= count($date_nodes) - $total_events; $i-- ) {
+                $date     = $date_nodes[ $i ];
+                $title    = $title_nodes[ $i ];
+                $location = $location_nodes[ $i ];
+                $link     = $link_nodes[ $i ];
 
                 // Add event data to the array
                 $events[] = [
